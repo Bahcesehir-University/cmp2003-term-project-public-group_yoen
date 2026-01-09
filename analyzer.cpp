@@ -7,13 +7,6 @@
 
 using namespace std;
 
-bool TripAnalyzer::extractHour(const string& s, int& h) {
-    if (s.size() < 13) return false;
-    if (!isdigit(s[11]) || !isdigit(s[12])) return false;
-    h = (s[11] - '0') * 10 + (s[12] - '0');
-    return h >= 0 && h <= 23;
-}
-
 void TripAnalyzer::processLine(const string& line) {
     if (line.empty()) return;
 
@@ -26,9 +19,14 @@ void TripAnalyzer::processLine(const string& line) {
     }
 
     if (cols.size() != 6) return;
+    if (cols[3].size() < 13) return;
 
-    int hour;
-    if (!extractHour(cols[3], hour)) return;
+    int hour = -1;
+    if (isdigit(cols[3][11]) && isdigit(cols[3][12])) {
+        hour = (cols[3][11] - '0') * 10 + (cols[3][12] - '0');
+    }
+
+    if (hour < 0 || hour > 23) return;
 
     const string& zone = cols[1];
 
@@ -46,28 +44,29 @@ void TripAnalyzer::ingestStdin() {
     }
 }
 
-void TripAnalyzer::ingestFile(std::string filename) {
+void TripAnalyzer::ingestFile(const std::string& csvPath) {
     zoneFreq.clear();
     slotFreq.clear();
 
-    ifstream file(filename);
+    ifstream file(csvPath);
     if (!file.is_open()) return;
 
     string line;
     while (getline(file, line)) {
+        if (line.find("TripID") != string::npos) continue;
         processLine(line);
     }
     file.close();
 }
 
-vector<ZoneCount> TripAnalyzer::topZones(int k) {
+vector<ZoneCount> TripAnalyzer::topZones(int k) const {
     vector<ZoneCount> out;
     out.reserve(zoneFreq.size());
 
-    for (auto& it : zoneFreq)
-        out.push_back({it.first, it.second});
+    for (const auto& pair : zoneFreq)
+        out.push_back({pair.first, pair.second});
 
-    sort(out.begin(), out.end(), [](auto& a, auto& b) {
+    sort(out.begin(), out.end(), [](const ZoneCount& a, const ZoneCount& b) {
         if (a.count != b.count) return a.count > b.count;
         return a.zone < b.zone;
     });
@@ -76,20 +75,20 @@ vector<ZoneCount> TripAnalyzer::topZones(int k) {
     return out;
 }
 
-vector<SlotCount> TripAnalyzer::topBusySlots(int k) {
+vector<SlotCount> TripAnalyzer::topBusySlots(int k) const {
     vector<SlotCount> out;
     out.reserve(slotFreq.size());
 
-    for (auto& it : slotFreq) {
-        size_t pos = it.first.find('#');
+    for (const auto& pair : slotFreq) {
+        size_t pos = pair.first.find('#');
         out.push_back({
-            it.first.substr(0, pos),
-            stoi(it.first.substr(pos + 1)),
-            it.second
+            pair.first.substr(0, pos),
+            stoi(pair.first.substr(pos + 1)),
+            pair.second
         });
     }
 
-    sort(out.begin(), out.end(), [](auto& a, auto& b) {
+    sort(out.begin(), out.end(), [](const SlotCount& a, const SlotCount& b) {
         if (a.count != b.count) return a.count > b.count;
         if (a.zone != b.zone) return a.zone < b.zone;
         return a.hour < b.hour;
