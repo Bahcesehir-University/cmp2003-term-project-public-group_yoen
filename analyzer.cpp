@@ -18,17 +18,29 @@ void TripAnalyzer::processLine(const string& line) {
         cols.push_back(token);
     }
 
-    if (cols.size() != 6) return;
-    if (cols[3].size() < 13) return;
+    string zone;
+    string timeStr;
+
+    if (cols.size() == 3) {
+        zone = cols[1];
+        timeStr = cols[2];
+    } 
+    else if (cols.size() >= 6) {
+        zone = cols[1];
+        timeStr = cols[3];
+    } 
+    else {
+        return;
+    }
+
+    if (timeStr.size() < 13) return;
 
     int hour = -1;
-    if (isdigit(cols[3][11]) && isdigit(cols[3][12])) {
-        hour = (cols[3][11] - '0') * 10 + (cols[3][12] - '0');
+    if (isdigit(timeStr[11]) && isdigit(timeStr[12])) {
+        hour = (timeStr[11] - '0') * 10 + (timeStr[12] - '0');
     }
 
     if (hour < 0 || hour > 23) return;
-
-    const string& zone = cols[1];
 
     zoneFreq[zone]++;
     slotFreq[zone + "#" + to_string(hour)]++;
