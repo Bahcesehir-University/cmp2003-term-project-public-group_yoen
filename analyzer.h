@@ -1,6 +1,7 @@
 #pragma once
 #include <string>
 #include <vector>
+#include <unordered_map>
 
 struct ZoneCount {
     std::string zone;
@@ -16,7 +17,12 @@ struct SlotCount {
 class TripAnalyzer {
 public:
     void ingestStdin();
+    void ingestFile(const std::string& csvPath);
+    std::vector<ZoneCount> topZones(int k = 10) const;
+    std::vector<SlotCount> topBusySlots(int k = 10) const;
 
-    std::vector<ZoneCount> topZones(int k = 10);
-    std::vector<SlotCount> topBusySlots(int k = 10);
+private:
+    std::unordered_map<std::string, long long> zoneFreq;
+    std::unordered_map<std::string, long long> slotFreq;
+    void processLine(const std::string& line);
 };
