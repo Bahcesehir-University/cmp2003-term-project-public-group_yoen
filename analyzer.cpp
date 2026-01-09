@@ -1,49 +1,20 @@
 #include "analyzer.h"
-#include <iostream>
+#include <unordered_map>
 #include <sstream>
 #include <algorithm>
-#include <fstream>
-#include <vector>
+#include <iostream>
+#include <cctype>
 
 using namespace std;
 
-void TripAnalyzer::processLine(const string& line) {
-    if (line.empty()) return;
+static unordered_map<string, long long> zoneFreq;
+static unordered_map<string, long long> slotFreq;
 
-    vector<string> cols;
-    string token;
-    stringstream ss(line);
-
-    while (getline(ss, token, ',')) {
-        cols.push_back(token);
-    }
-
-    string zone;
-    string timeStr;
-
-    if (cols.size() == 3) {
-        zone = cols[1];
-        timeStr = cols[2];
-    } 
-    else if (cols.size() >= 6) {
-        zone = cols[1];
-        timeStr = cols[3];
-    } 
-    else {
-        return;
-    }
-
-    if (timeStr.size() < 13) return;
-
-    int hour = -1;
-    if (isdigit(timeStr[11]) && isdigit(timeStr[12])) {
-        hour = (timeStr[11] - '0') * 10 + (timeStr[12] - '0');
-    }
-
-    if (hour < 0 || hour > 23) return;
-
-    zoneFreq[zone]++;
-    slotFreq[zone + "#" + to_string(hour)]++;
+static bool extractHour(const string& s, int& h) {
+    if (s.size() < 13) return false;
+    if (!isdigit(s[11]) || !isdigit(s[12])) return false;
+    h = (s[11] - '0') * 10 + (s[12] - '0');
+    return h >= 0 && h <= 23;
 }
 
 void TripAnalyzer::ingestStdin() {
@@ -52,33 +23,36 @@ void TripAnalyzer::ingestStdin() {
 
     string line;
     while (getline(cin, line)) {
-        processLine(line);
+        if (line.empty()) continue;
+
+        vector<string> cols;
+        string token;
+        stringstream ss(line);
+
+        while (getline(ss, token, ',')) {
+            cols.push_back(token);
+        }
+
+        if (cols.size() != 6) continue;
+
+        int hour;
+        if (!extractHour(cols[3], hour)) continue;
+
+        const string& zone = cols[1];
+
+        zoneFreq[zone]++;
+        slotFreq[zone + "#" + to_string(hour)]++;
     }
 }
 
-void TripAnalyzer::ingestFile(const std::string& csvPath) {
-    zoneFreq.clear();
-    slotFreq.clear();
-
-    ifstream file(csvPath);
-    if (!file.is_open()) return;
-
-    string line;
-    while (getline(file, line)) {
-        if (line.find("TripID") != string::npos) continue;
-        processLine(line);
-    }
-    file.close();
-}
-
-vector<ZoneCount> TripAnalyzer::topZones(int k) const {
+vector<ZoneCount> TripAnalyzer::topZones(int k) {
     vector<ZoneCount> out;
     out.reserve(zoneFreq.size());
 
-    for (const auto& pair : zoneFreq)
-        out.push_back({pair.first, pair.second});
+    for (auto& it : zoneFreq)
+        out.push_back({it.first, it.second});
 
-    sort(out.begin(), out.end(), [](const ZoneCount& a, const ZoneCount& b) {
+    sort(out.begin(), out.end(), [](auto& a, auto& b) {
         if (a.count != b.count) return a.count > b.count;
         return a.zone < b.zone;
     });
@@ -87,20 +61,20 @@ vector<ZoneCount> TripAnalyzer::topZones(int k) const {
     return out;
 }
 
-vector<SlotCount> TripAnalyzer::topBusySlots(int k) const {
+vector<SlotCount> TripAnalyzer::topBusySlots(int k) {
     vector<SlotCount> out;
     out.reserve(slotFreq.size());
 
-    for (const auto& pair : slotFreq) {
-        size_t pos = pair.first.find('#');
+    for (auto& it : slotFreq) {
+        size_t pos = it.first.find('#');
         out.push_back({
-            pair.first.substr(0, pos),
-            stoi(pair.first.substr(pos + 1)),
-            pair.second
+            it.first.substr(0, pos),
+            stoi(it.first.substr(pos + 1)),
+            it.second
         });
     }
 
-    sort(out.begin(), out.end(), [](const SlotCount& a, const SlotCount& b) {
+    sort(out.begin(), out.end(), [](auto& a, auto& b) {
         if (a.count != b.count) return a.count > b.count;
         if (a.zone != b.zone) return a.zone < b.zone;
         return a.hour < b.hour;
