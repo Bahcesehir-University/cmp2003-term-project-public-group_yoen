@@ -1,14 +1,40 @@
 #include "analyzer.h"
 #include <iostream>
-#include <fstream>
 #include <sstream>
-#include <unordered_map>
 #include <algorithm>
+#include <fstream>
+#include <vector>
 
 using namespace std;
 
-static unordered_map<string, long long> zoneCount;
-static unordered_map<string, long long> zoneHourCount;
+bool TripAnalyzer::extractHour(const string& s, int& h) {
+    if (s.size() < 13) return false;
+    if (!isdigit(s[11]) || !isdigit(s[12])) return false;
+    h = (s[11] - '0') * 10 + (s[12] - '0');
+    return h >= 0 && h <= 23;
+}
+
+void TripAnalyzer::processLine(const string& line) {
+    if (line.empty()) return;
+
+    vector<string> cols;
+    string token;
+    stringstream ss(line);
+
+    while (getline(ss, token, ',')) {
+        cols.push_back(token);
+    }
+
+    if (cols.size() != 6) return;
+
+    int hour;
+    if (!extractHour(cols[3], hour)) return;
+
+    const string& zone = cols[1];
+
+    zoneFreq[zone]++;
+    slotFreq[zone + "#" + to_string(hour)]++;
+}
 
 void TripAnalyzer::ingestStdin() {
     ios::sync_with_stdio(false);
@@ -16,116 +42,59 @@ void TripAnalyzer::ingestStdin() {
 
     string line;
     while (getline(cin, line)) {
-        if (line.empty()) continue;
-
-        string col;
-        stringstream ss(line);
-        vector<string> cols;
-
-        while (getline(ss, col, ',')) {
-            cols.push_back(col);
-        }
-
-        if (cols.size() != 6) continue;
-        if (cols[3].size() < 13) continue;
-
-        int hour;
-        try {
-            hour = stoi(cols[3].substr(11, 2));
-        }
-        catch (...) {
-            continue;
-        }
-
-        if (hour < 0 || hour > 23) continue;
-
-        const string& zone = cols[1];
-
-        ++zoneCount[zone];
-        ++zoneHourCount[zone + "#" + to_string(hour)];
+        processLine(line);
     }
 }
 
-void TripAnalyzer::ingestFile(string filename) {
+void TripAnalyzer::ingestFile(std::string filename) {
+    zoneFreq.clear();
+    slotFreq.clear();
+
     ifstream file(filename);
     if (!file.is_open()) return;
 
     string line;
     while (getline(file, line)) {
-        if (line.empty()) continue;
-
-        string col;
-        stringstream ss(line);
-        vector<string> cols;
-
-        while (getline(ss, col, ',')) {
-            cols.push_back(col);
-        }
-
-        if (cols.size() != 6) continue;
-        if (cols[3].size() < 13) continue;
-
-        int hour;
-        try {
-            hour = stoi(cols[3].substr(11, 2));
-        }
-        catch (...) {
-            continue;
-        }
-
-        if (hour < 0 || hour > 23) continue;
-
-        const string& zone = cols[1];
-
-        ++zoneCount[zone];
-        ++zoneHourCount[zone + "#" + to_string(hour)];
+        processLine(line);
     }
+    file.close();
 }
 
-vector<ZoneCount> TripAnalyzer::topZones(int k) const {
-    vector<ZoneCount> result;
-    result.reserve(zoneCount.size());
+vector<ZoneCount> TripAnalyzer::topZones(int k) {
+    vector<ZoneCount> out;
+    out.reserve(zoneFreq.size());
 
-    for (const auto& p : zoneCount) {
-        result.push_back({ p.first, p.second });
-    }
+    for (auto& it : zoneFreq)
+        out.push_back({ it.first, it.second });
 
-    sort(result.begin(), result.end(),
-        [](const ZoneCount& a, const ZoneCount& b) {
-            if (a.count != b.count)
-                return a.count > b.count;
-            return a.zone < b.zone;
+    sort(out.begin(), out.end(), [](auto& a, auto& b) {
+        if (a.count != b.count) return a.count > b.count;
+        return a.zone < b.zone;
         });
 
-    if ((int)result.size() > k)
-        result.resize(k);
-
-    return result;
+    if ((int)out.size() > k) out.resize(k);
+    return out;
 }
 
-vector<SlotCount> TripAnalyzer::topBusySlots(int k) const {
-    vector<SlotCount> result;
-    result.reserve(zoneHourCount.size());
+vector<SlotCount> TripAnalyzer::topBusySlots(int k) {
+    vector<SlotCount> out;
+    out.reserve(slotFreq.size());
 
-    for (const auto& p : zoneHourCount) {
-        size_t pos = p.first.find('#');
-        string zone = p.first.substr(0, pos);
-        int hour = stoi(p.first.substr(pos + 1));
-
-        result.push_back({ zone, hour, p.second });
+    for (auto& it : slotFreq) {
+        size_t pos = it.first.find('#');
+        out.push_back({
+            it.first.substr(0, pos),
+            stoi(it.first.substr(pos + 1)),
+            it.second
+            });
     }
 
-    sort(result.begin(), result.end(),
-        [](const SlotCount& a, const SlotCount& b) {
-            if (a.count != b.count)
-                return a.count > b.count;
-            if (a.zone != b.zone)
-                return a.zone < b.zone;
-            return a.hour < b.hour;
+    sort(out.begin(), out.end(), [](auto& a, auto& b) {
+        if (a.count != b.count) return a.count > b.count;
+        if (a.zone != b.zone) return a.zone < b.zone;
+        return a.hour < b.hour;
         });
 
-    if ((int)result.size() > k)
-        result.resize(k);
-
-    return result;
+    if ((int)out.size() > k) out.resize(k);
+    return out;
 }
