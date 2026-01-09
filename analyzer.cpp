@@ -65,12 +65,12 @@ vector<ZoneCount> TripAnalyzer::topZones(int k) {
     out.reserve(zoneFreq.size());
 
     for (auto& it : zoneFreq)
-        out.push_back({ it.first, it.second });
+        out.push_back({it.first, it.second});
 
     sort(out.begin(), out.end(), [](auto& a, auto& b) {
         if (a.count != b.count) return a.count > b.count;
         return a.zone < b.zone;
-        });
+    });
 
     if ((int)out.size() > k) out.resize(k);
     return out;
@@ -86,14 +86,14 @@ vector<SlotCount> TripAnalyzer::topBusySlots(int k) {
             it.first.substr(0, pos),
             stoi(it.first.substr(pos + 1)),
             it.second
-            });
+        });
     }
 
     sort(out.begin(), out.end(), [](auto& a, auto& b) {
         if (a.count != b.count) return a.count > b.count;
         if (a.zone != b.zone) return a.zone < b.zone;
         return a.hour < b.hour;
-        });
+    });
 
     if ((int)out.size() > k) out.resize(k);
     return out;
